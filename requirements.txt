@@ -1,0 +1,11 @@
+flask
+flask-session
+feedparser
+pandas
+plotly
+yfinance
+tsmoothie
+matplotlib
+scikit-learn
+cvxpy
+nltk
