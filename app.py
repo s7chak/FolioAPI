@@ -11,7 +11,7 @@ import plotly.figure_factory as ff
 import plotly.graph_objects as go
 import plotly.io as pio
 import yfinance as yf
-from flask import Flask, request, jsonify, session, g
+from flask import Flask, request, jsonify, session, render_template_string, g
 from sklearn.preprocessing import MinMaxScaler
 from tsmoothie.smoother import DecomposeSmoother
 from flask_session import Session
@@ -526,9 +526,22 @@ def fetch_headlines():
 def base():
     print("Session started")
     print(session)
-    res = {"message": "FolioAPI running."}
-    return jsonify(res), 200
 
+    # Inline HTML template
+    html_template = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Folio API</title>
+    </head>
+    <body>
+        <h1>Folio API</h1>
+        <p>API is running.</p>
+    </body>
+    </html>
+    """
+
+    return render_template_string(html_template)
 
 
 @app.route('/health', methods=['GET'])
