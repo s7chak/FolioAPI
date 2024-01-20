@@ -523,7 +523,7 @@ def fetch_headlines():
 
 
 @app.route('/', methods=['GET'])
-def session_check():
+def base():
     print("Session started")
     print(session)
     res = {"message": "FolioAPI running."}
