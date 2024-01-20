@@ -522,6 +522,14 @@ def fetch_headlines():
 
 
 
+@app.route('/', methods=['GET'])
+def session_check():
+    print("Session started")
+    print(session)
+    res = {"message": "FolioAPI running."}
+    return jsonify(res), 200
+
+
 
 @app.route('/health', methods=['GET'])
 def health():
