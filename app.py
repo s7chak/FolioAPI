@@ -16,7 +16,7 @@ from sklearn.preprocessing import MinMaxScaler
 from tsmoothie.smoother import DecomposeSmoother
 from flask_session import Session
 from ops.insights import ProcessOperator, NewsOperator, OptimalOperator
-
+from urllib.parse import unquote
 
 app = Flask(__name__)
 app.config['SESSION_PERMANENT'] = True
@@ -46,7 +46,7 @@ def load_fund_data(funds):
 
 
 def process_stocks(stocks_str):
-    res = [json.loads(item) for item in stocks_str]
+    res = [item for item in stocks_str]
     flattened_data = [item for sublist in res for item in sublist]
     df = pd.DataFrame(flattened_data)
     df = df[['name', 'quantity', 'cost', 'total']]
@@ -106,6 +106,8 @@ def factsheet():
         g.code = request.args.get('code')
         session[g.code] = {}
         stocks_param = request.args.getlist('stocks[]')
+        if '%22' in stocks_param[0]:
+            stocks_param = unquote(stocks_param[0])
         stocks = process_stocks(stocks_param)
         session[g.code]['stocks'] = stocks
         result = calculate_facts(stocks)
@@ -552,4 +554,4 @@ def health():
 app.secret_key = '<APPSECRET>'
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port="8080")
+    app.run(host="0.0.0.0", port="8091")
