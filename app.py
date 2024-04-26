@@ -32,7 +32,7 @@ envs = {
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
 active_env = 'prod'
-active_version = '1.0'
+active_version = '4.0'
 
 def delete_metadata():
     del session[g.code]['metadata']
@@ -77,8 +77,8 @@ def check_file_exists(stock_storage_file):
     if active_env != 'local':
         client = storage.Client()
         blobs = client.list_blobs(bucket_name)
-        print(blobs)
-        return stock_storage_file in blobs
+        print(list(blobs))
+        return stock_storage_file in list(blobs)
     else:
         return os.path.isfile(stock_storage_file)
 
