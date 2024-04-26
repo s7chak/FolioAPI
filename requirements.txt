@@ -9,6 +9,7 @@ matplotlib
 scikit-learn
 cvxpy
 nltk
+gunicorn
 google-cloud-storage
 fsspec
 gcsfs
