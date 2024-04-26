@@ -1,11 +1,13 @@
 import base64
-import json
-import os
 import io
+import json
+import logging
+import os
 import sys
 from datetime import datetime as dt
 from datetime import timedelta
 
+import google.cloud.logging
 import numpy as np
 import pandas as pd
 import plotly.figure_factory as ff
@@ -15,11 +17,12 @@ import yfinance as yf
 from flask import Flask, request, jsonify, session, render_template_string, g
 from sklearn.preprocessing import MinMaxScaler
 from tsmoothie.smoother import DecomposeSmoother
+
 from flask_session import Session
 from ops.insights import ProcessOperator, NewsOperator, OptimalOperator
-import google.cloud.logging
-import logging
-from urllib.parse import unquote
+
+client = google.cloud.logging.Client()
+client.setup_logging()
 
 app = Flask(__name__)
 app.config['SESSION_PERMANENT'] = True
