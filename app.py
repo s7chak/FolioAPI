@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import io
 import sys
 from datetime import datetime as dt
 from datetime import timedelta
@@ -28,7 +29,7 @@ envs = {
     'local' : {'type':'mac', 'url':''},
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
-active_env = 'local'
+active_env = 'prod'
 active_version = '1.0'
 
 def delete_metadata():
@@ -44,6 +45,40 @@ def load_fund_data(funds):
             get_fund_info(fund)
 
 
+from google.cloud import storage
+bucket_name = 'fols-buck'
+def upload_blob(data, filename):
+    global bucket_name
+    path = f'gs://{bucket_name}/{filename}'
+    try:
+        data.to_csv(path)
+    except:
+        print("Failed to save file")
+
+def read_file(stock_storage_file):
+    if active_env!='local':
+        client = storage.Client()
+        blobs = client.list_blobs(bucket_name)
+        for blob in blobs:
+            try:
+                if stock_storage_file == blob.name:
+                    file_data = blob.download_as_bytes()
+                    df_ = pd.read_csv(io.BytesIO(file_data))
+                    return df_
+                return None
+            except:
+                continue
+    else:
+        return pd.read_csv(stock_storage_file)
+
+def check_file_exists(stock_storage_file):
+    if active_env != 'local':
+        client = storage.Client()
+        blobs = client.list_blobs(bucket_name)
+        return (stock_storage_file in blobs)
+    else:
+        return os.path.isfile(stock_storage_file)
+
 
 def process_stocks(stocks_str):
     df = pd.DataFrame(stocks_str)
@@ -51,18 +86,22 @@ def process_stocks(stocks_str):
     df.drop('total', axis=1, inplace=True)
     today = str(dt.now().date())
     stock_storage_file = 'files/'+today+'.csv'
-    if not os.path.isfile(stock_storage_file):
+    if not check_file_exists(stock_storage_file):
         load_fund_data(list(df['name'].unique()))
         df['price'] = df['name'].apply(lambda x: session[g.code]['metadata'][x]['LastClosePrice'] if x in session[g.code]['metadata'] else np.nan)
         df[['name','price']].to_csv('files/' + today + '.csv')
+        if active_env!='local':
+            upload_blob(df[['name','price']], today + '.csv')
     else:
-        read_df = pd.read_csv(stock_storage_file)
+        read_df = read_file(stock_storage_file)
         if read_df.shape[0]==df.shape[0]:
             df = df.merge(read_df, on='name')[['name','quantity','cost','price']]
         else:
             load_fund_data(list(df['name'].unique()))
             df['price'] = df['name'].apply(lambda x: session[g.code]['metadata'][x]['LastClosePrice'] if x in session[g.code]['metadata'] else np.nan)
             df[['name', 'price']].to_csv('files/' + today + '.csv')
+            if active_env != 'local':
+                upload_blob(df[['name', 'price']], today + '.csv')
     # df['volatility'] = df['name'].apply(lambda x: round(session[g.code]['metadata'][x]['Volatility'],2) if session[g.code]['metadata'][x]['Volatility'] is not None else None)
     # df['peRatio'] = df['name'].apply(lambda x: session[g.code]['metadata'][x]['PE_Ratio'] if session[g.code]['metadata'][x]['PE_Ratio']!=np.nan else '')
 
@@ -98,16 +137,13 @@ def session_check():
     return jsonify(res), 200
 
 
-@app.route('/factsheet', methods=['GET'])
+@app.route('/factsheet', methods=['POST'])
 def factsheet():
     try:
         g.code = request.args.get('code')
         session[g.code] = {}
-        stocks_param = request.args.getlist('stocks[]')
-        if '%22' in stocks_param[0]:
-            stocks_param = unquote(stocks_param[0])
-            stocks_param = json.loads(stocks_param)
-        stocks = process_stocks(stocks_param)
+        stocks_data = request.json.get('stocks')
+        stocks = process_stocks(stocks_data)
         session[g.code]['stocks'] = stocks
         result = calculate_facts(stocks)
         return jsonify(result), 200
@@ -344,6 +380,7 @@ benchmark = '^GSPC'
 def calculate_stock_metrics(history):
     portfolio_stocks = session[g.code]['stocks']
     weights = [stock['quantity'] for stock in portfolio_stocks]
+
     # Calculate daily returns
     historical_data = history
     benchmark_data = history[benchmark+'_Close']
@@ -362,22 +399,26 @@ def calculate_stock_metrics(history):
     daily_returns = historical_data.pct_change()
     cumulative_returns = (1 + daily_returns).cumprod() - 1
     volatility = daily_returns.std()
-    avg_daily_returns = daily_returns.mean()
-    start_price = historical_data.iloc[0]
-    end_price = historical_data.iloc[-1]
+    valid_mask = ~np.isnan(volatility)
+    valid_volatility = volatility[valid_mask]
+    valid_daily_returns = daily_returns[1:].loc[:, ~np.isnan(volatility)]
+    valid_weights = [weights[i] for i in range(len(weights)) if valid_mask[i]]
+    avg_daily_returns = valid_daily_returns.mean()
+    start_price = historical_data.iloc[0][valid_mask]
+    end_price = historical_data.iloc[-1][valid_mask]
     num_years = len(historical_data) / 252  # Assuming 252 trading days in a year
     cagr = (end_price / start_price) ** (1 / num_years) - 1
     risk_free_rate = 0.02
-    sharpe_ratio = (cagr - risk_free_rate) / volatility
+    sharpe_ratio = (cagr - risk_free_rate) / valid_volatility
 
     # Calculate the weighted average
-    weighted_volatility = np.average(volatility, weights=weights) if not volatility.isna().any() else 0
-    weighted_sharpe_ratio = np.average(sharpe_ratio, weights=weights) if not sharpe_ratio.isna().any() else 0
-    weighted_daily_ret = np.average(avg_daily_returns, weights=[s for s in portfolio_stocks if s in found_stock])
+    weighted_volatility = np.average(valid_volatility, weights=valid_weights, axis=0)
+    weighted_sharpe_ratio = np.average(sharpe_ratio, weights=valid_weights)
+    weighted_daily_ret = np.average(avg_daily_returns, weights=valid_weights)
     business_days_per_month = 21
     weighted_monthly_ret = round(weighted_daily_ret * business_days_per_month, 4)
     weighted_daily_ret = round(weighted_daily_ret, 4)
-    weighted_cagr = round(np.average(cagr, weights=[stock['quantity'] for stock in portfolio_stocks]), 2) if not cagr.isna().any() else 0
+    weighted_cagr = round(np.average(cagr, weights=valid_weights), 2)
     folio_avg = {
         'Weighted Monthly Ret': weighted_monthly_ret,
         'Weighted Daily Ret': weighted_daily_ret,
@@ -430,6 +471,7 @@ def showHistory():
             min_gspc = data['^GSPC'].min()
             max_gspc = data['^GSPC'].max()
             data['S&P'] = round((data['^GSPC'] - min_gspc) / (max_gspc - min_gspc),2)
+            data = data.fillna(0)
             res = data.to_dict('records')
         result = {"history":res, "message":"Loaded from "+start_date.split('T')[0]}
         return jsonify(result), 200
@@ -522,7 +564,7 @@ def base():
     print(session)
 
     # Inline HTML template
-    html_template = """
+    html_template = f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -531,6 +573,7 @@ def base():
     <body>
         <h1>Folio API</h1>
         <p>API is running.</p>
+        <p>Version {active_version}</p>
     </body>
     </html>
     """
