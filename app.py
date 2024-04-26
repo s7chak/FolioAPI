@@ -61,18 +61,19 @@ def upload_blob(data, filename):
         print("Failed to save file")
 
 def read_file(stock_storage_file):
+    global bucket_name
     if active_env!='local':
         client = storage.Client()
         blobs = client.list_blobs(bucket_name)
-        for blob in blobs:
-            try:
+        try:
+            for blob in blobs:
                 if stock_storage_file == blob.name:
                     file_data = blob.download_as_bytes()
                     df_ = pd.read_csv(io.BytesIO(file_data))
                     return df_
                 return None
-            except:
-                continue
+        except Exception as e:
+            print(str(e))
     else:
         return pd.read_csv(stock_storage_file)
 
@@ -80,9 +81,8 @@ def check_file_exists(stock_storage_file):
     global bucket_name
     if active_env != 'local':
         client = storage.Client()
-        blobs = client.list_blobs(bucket_name)
-        print(list(blobs))
-        return stock_storage_file in list(blobs)
+        blobs = [b.name for b in client.list_blobs(bucket_name)]
+        return stock_storage_file in blobs
     else:
         return os.path.isfile(stock_storage_file)
 
