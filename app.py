@@ -131,7 +131,7 @@ def calculate_facts(stocks):
 
 @app.route('/session_check', methods=['GET'])
 def session_check():
-    print("Session started")
+    print("Session started...")
     print(session)
     res = {"message": "Session: "+str(session.keys())}
     return jsonify(res), 200
