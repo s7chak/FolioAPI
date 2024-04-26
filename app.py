@@ -46,9 +46,7 @@ def load_fund_data(funds):
 
 
 def process_stocks(stocks_str):
-    res = [item for item in stocks_str]
-    flattened_data = [item for sublist in res for item in sublist]
-    df = pd.DataFrame(flattened_data)
+    df = pd.DataFrame(stocks_str)
     df = df[['name', 'quantity', 'cost', 'total']]
     df.drop('total', axis=1, inplace=True)
     today = str(dt.now().date())
@@ -108,6 +106,7 @@ def factsheet():
         stocks_param = request.args.getlist('stocks[]')
         if '%22' in stocks_param[0]:
             stocks_param = unquote(stocks_param[0])
+            stocks_param = json.loads(stocks_param)
         stocks = process_stocks(stocks_param)
         session[g.code]['stocks'] = stocks
         result = calculate_facts(stocks)
@@ -414,7 +413,8 @@ def fetchHistoryMetrics():
             result['message'] = 'History analysed.'
             input_ = history[start_date:]
             insights = calculate_stock_metrics(input_)
-        return jsonify(insights), 200
+            return jsonify(insights), 200
+        return jsonify({"error": "No stocks"}), 500
     except Exception as e:
         print(e)
         return jsonify({"error": str(e)}), 500
