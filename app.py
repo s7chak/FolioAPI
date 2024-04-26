@@ -154,7 +154,6 @@ def factsheet():
         stocks_data = request.json.get('stocks')
         stocks = process_stocks(stocks_data)
         session[g.code]['stocks'] = stocks
-        print(str(session))
         result = calculate_facts(stocks)
         return jsonify(result), 200
     except Exception as e:
@@ -167,20 +166,19 @@ def stocksheet():
         g.code = request.args.get('code')
         gainSorted = request.args.get('gainSorted')
         stocks={}
-        logging.info('Starting stock sheet fetch: '+str(session))
+        print('Starting stock sheet fetch: '+str(session))
         if g.code in session:
-            logging.info('Session presence: '+str(session))
             stocks = session[g.code].get('stocks', [])
-            sorting_options = {
-                'change': lambda x: x['change'],
-                'changepct': lambda x: x['changepct'],
-                'percentage': lambda x: x['percentage'],
-                'pe': lambda x: x['peRatio'],
-                'volatility': lambda x: x['volatility']
-            }
-            if gainSorted in sorting_options:
-                key_function = sorting_options[gainSorted]
-                stocks = sorted(stocks, key=key_function, reverse=(gainSorted not in ['pe']))
+            # sorting_options = {
+            #     'change': lambda x: x['change'],
+            #     'changepct': lambda x: x['changepct'],
+            #     'percentage': lambda x: x['percentage'],
+            #     'pe': lambda x: x['peRatio'],
+            #     'volatility': lambda x: x['volatility']
+            # }
+            # if gainSorted in sorting_options:
+            #     key_function = sorting_options[gainSorted]
+            #     stocks = sorted(stocks, key=key_function, reverse=(gainSorted not in ['pe']))
         return jsonify(stocks), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
