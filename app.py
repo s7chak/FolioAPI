@@ -35,7 +35,7 @@ envs = {
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
 active_env = 'prod'
-active_version = '4.0.4'
+active_version = '4.0.5'
 
 def delete_metadata():
     del session[g.code]['metadata']
