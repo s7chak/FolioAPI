@@ -35,7 +35,7 @@ envs = {
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
 active_env = 'prod'
-active_version = '4.0'
+active_version = '4.0.1'
 
 def delete_metadata():
     del session[g.code]['metadata']
@@ -77,6 +77,7 @@ def read_file(stock_storage_file):
         return pd.read_csv(stock_storage_file)
 
 def check_file_exists(stock_storage_file):
+    global bucket_name
     if active_env != 'local':
         client = storage.Client()
         blobs = client.list_blobs(bucket_name)
@@ -91,7 +92,7 @@ def process_stocks(stocks_str):
     df = df[['name', 'quantity', 'cost', 'total']]
     df.drop('total', axis=1, inplace=True)
     today = str(dt.now().date())
-    stock_storage_file = 'files/'+today+'.csv'
+    stock_storage_file = 'files/'+today+'.csv' if active_env=='local' else today+'.csv'
     if not check_file_exists(stock_storage_file):
         load_fund_data(list(df['name'].unique()))
         df['price'] = df['name'].apply(lambda x: session[g.code]['metadata'][x]['LastClosePrice'] if x in session[g.code]['metadata'] else np.nan)
