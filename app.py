@@ -214,7 +214,7 @@ def correlation_plot(history):
     fig = ff.create_annotated_heatmap(correlations.values, x=stock_names, y=stock_names, annotation_text=custom_text)
     start = history.index.min()
     fig.update_layout(
-        title="Correlation Heatmap : since "+start,
+        title="Correlation Heatmap : since "+str(start),
         autosize=False,
         width=1400,
         height=1400,
@@ -343,6 +343,7 @@ def calculate_max_drawdown(historical_data, portfolio_stocks):
 benchmark = '^GSPC'
 def calculate_stock_metrics(history):
     portfolio_stocks = session[g.code]['stocks']
+    weights = [stock['quantity'] for stock in portfolio_stocks]
     # Calculate daily returns
     historical_data = history
     benchmark_data = history[benchmark+'_Close']
@@ -357,7 +358,7 @@ def calculate_stock_metrics(history):
         historical_data = historical_data.drop('Total', axis=1)
         historical_data = historical_data.drop(tot_cols, axis=1)
 
-
+    found_stock = [h.split('_')[0] for h in historical_data]
     daily_returns = historical_data.pct_change()
     cumulative_returns = (1 + daily_returns).cumprod() - 1
     volatility = daily_returns.std()
@@ -369,19 +370,10 @@ def calculate_stock_metrics(history):
     risk_free_rate = 0.02
     sharpe_ratio = (cagr - risk_free_rate) / volatility
 
-    metrics_df = pd.DataFrame({
-        # 'Daily Returns': daily_returns,
-        # 'Cumulative Returns': cumulative_returns,
-        'Volatility': volatility,
-        'Average Daily Returns': avg_daily_returns,
-        'CAGR': cagr,
-        'Sharpe Ratio': sharpe_ratio
-    })
-
     # Calculate the weighted average
-    weighted_volatility = np.average(volatility, weights=[stock['quantity'] for stock in portfolio_stocks]) if not volatility.isna().any() else 0
-    weighted_sharpe_ratio = np.average(sharpe_ratio, weights=[stock['quantity'] for stock in portfolio_stocks]) if not sharpe_ratio.isna().any() else 0
-    weighted_daily_ret = np.average(avg_daily_returns, weights=[stock['quantity'] for stock in portfolio_stocks])
+    weighted_volatility = np.average(volatility, weights=weights) if not volatility.isna().any() else 0
+    weighted_sharpe_ratio = np.average(sharpe_ratio, weights=weights) if not sharpe_ratio.isna().any() else 0
+    weighted_daily_ret = np.average(avg_daily_returns, weights=[s for s in portfolio_stocks if s in found_stock])
     business_days_per_month = 21
     weighted_monthly_ret = round(weighted_daily_ret * business_days_per_month, 4)
     weighted_daily_ret = round(weighted_daily_ret, 4)
