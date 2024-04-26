@@ -17,6 +17,8 @@ from sklearn.preprocessing import MinMaxScaler
 from tsmoothie.smoother import DecomposeSmoother
 from flask_session import Session
 from ops.insights import ProcessOperator, NewsOperator, OptimalOperator
+import google.cloud.logging
+import logging
 from urllib.parse import unquote
 
 app = Flask(__name__)
@@ -148,6 +150,7 @@ def factsheet():
         stocks_data = request.json.get('stocks')
         stocks = process_stocks(stocks_data)
         session[g.code]['stocks'] = stocks
+        logging.info(str(session))
         result = calculate_facts(stocks)
         return jsonify(result), 200
     except Exception as e:
@@ -160,6 +163,7 @@ def stocksheet():
         g.code = request.args.get('code')
         gainSorted = request.args.get('gainSorted')
         stocks={}
+        logging.info('Starting stock sheet fetch: '+str(session))
         if g.code in session:
             print('Session presence')
             stocks = session[g.code].get('stocks', [])

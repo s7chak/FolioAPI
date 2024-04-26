@@ -11,5 +11,6 @@ cvxpy
 nltk
 gunicorn
 google-cloud-storage
+google-cloud-logging
 fsspec
 gcsfs
