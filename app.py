@@ -35,7 +35,7 @@ envs = {
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
 active_env = 'local'
-active_version = '4.0.2'
+active_version = '4.0.3'
 
 def delete_metadata():
     del session[g.code]['metadata']
@@ -154,7 +154,7 @@ def factsheet():
         stocks_data = request.json.get('stocks')
         stocks = process_stocks(stocks_data)
         session[g.code]['stocks'] = stocks
-        # logging.info(str(session))
+        print(str(session))
         result = calculate_facts(stocks)
         return jsonify(result), 200
     except Exception as e:
@@ -169,7 +169,7 @@ def stocksheet():
         stocks={}
         logging.info('Starting stock sheet fetch: '+str(session))
         if g.code in session:
-            print('Session presence')
+            logging.info('Session presence: '+str(session))
             stocks = session[g.code].get('stocks', [])
             sorting_options = {
                 'change': lambda x: x['change'],
@@ -181,7 +181,6 @@ def stocksheet():
             if gainSorted in sorting_options:
                 key_function = sorting_options[gainSorted]
                 stocks = sorted(stocks, key=key_function, reverse=(gainSorted not in ['pe']))
-        print('Post finding session.')
         return jsonify(stocks), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -230,7 +229,6 @@ def fetchHistory():
     try:
         g.code = request.args.get('code')
         start_date = request.args.get('startDate')
-        result = {}
         if g.code in session:
             history = session[g.code]['historical'] if 'historical' in session[g.code] else None
             if history is not None and not history.empty and type(history.index[0])==int:
