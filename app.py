@@ -21,8 +21,8 @@ from tsmoothie.smoother import DecomposeSmoother
 from flask_session import Session
 from ops.insights import ProcessOperator, NewsOperator, OptimalOperator
 
-client = google.cloud.logging.Client()
-client.setup_logging()
+# client = google.cloud.logging.Client()
+# client.setup_logging()
 
 app = Flask(__name__)
 app.config['SESSION_PERMANENT'] = True
@@ -34,7 +34,7 @@ envs = {
     'local' : {'type':'mac', 'url':''},
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
-active_env = 'prod'
+active_env = 'local'
 active_version = '4.0.1'
 
 def delete_metadata():
@@ -154,7 +154,7 @@ def factsheet():
         stocks_data = request.json.get('stocks')
         stocks = process_stocks(stocks_data)
         session[g.code]['stocks'] = stocks
-        logging.info(str(session))
+        # logging.info(str(session))
         result = calculate_facts(stocks)
         return jsonify(result), 200
     except Exception as e:
