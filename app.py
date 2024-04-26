@@ -34,8 +34,8 @@ envs = {
     'local' : {'type':'mac', 'url':''},
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
-active_env = 'prod'
-active_version = '4.0.5'
+active_env = 'local'
+active_version = '4.1'
 
 def delete_metadata():
     del session[g.code]['metadata']
@@ -61,7 +61,7 @@ def upload_blob(data, filename):
         print("Failed to save file")
 
 def read_file(stock_storage_file):
-    global bucket_name
+    global bucket_name, active_env
     if active_env!='local':
         client = storage.Client()
         blobs = client.list_blobs(bucket_name)
@@ -78,7 +78,7 @@ def read_file(stock_storage_file):
         return pd.read_csv(stock_storage_file)
 
 def check_file_exists(stock_storage_file):
-    global bucket_name
+    global bucket_name, active_env
     if active_env != 'local':
         client = storage.Client()
         blobs = [b.name for b in client.list_blobs(bucket_name)]
@@ -169,31 +169,32 @@ def stocksheet():
         print('Starting stock sheet fetch: '+str(session))
         if g.code in session:
             stocks = session[g.code].get('stocks', [])
-            # sorting_options = {
-            #     'change': lambda x: x['change'],
-            #     'changepct': lambda x: x['changepct'],
-            #     'percentage': lambda x: x['percentage'],
-            #     'pe': lambda x: x['peRatio'],
-            #     'volatility': lambda x: x['volatility']
-            # }
-            # if gainSorted in sorting_options:
-            #     key_function = sorting_options[gainSorted]
-            #     stocks = sorted(stocks, key=key_function, reverse=(gainSorted not in ['pe']))
+            sorting_options = {
+                'change': lambda x: x['change'],
+                'changepct': lambda x: x['changepct'],
+                'percentage': lambda x: x['percentage'],
+                'pe': lambda x: x['peRatio'],
+                'volatility': lambda x: x['volatility']
+            }
+            if gainSorted in sorting_options:
+                key_function = sorting_options[gainSorted]
+                stocks = sorted(stocks, key=key_function, reverse=(gainSorted not in ['pe']))
         return jsonify(stocks), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 def load_historical(start):
+    global active_env
     tickers = [s['name'] for s in session[g.code]['stocks']]
     start_date = dt.strptime(start, '%Y-%m-%dT%H:%M:%S.%fZ')
     combined_df = pd.DataFrame()
     tickers+=['^GSPC']
     path = 'files/'
-    filename = 'storage.csv'
+    filename = 'storage.csv' if active_env!='local' else path+'storage.csv'
     data_present = False
-    if os.path.isfile(path + filename):
-        file_loaded = pd.read_csv(path + filename)
+    if check_file_exists(filename):
+        file_loaded = read_file(filename)
         if not file_loaded.empty:
             data_present = start.split('T')[0] >= file_loaded['Date'].min()
             for t in tickers:
@@ -227,6 +228,8 @@ def fetchHistory():
     try:
         g.code = request.args.get('code')
         start_date = request.args.get('startDate')
+        data = None
+        stocks = []
         if g.code in session:
             history = session[g.code]['historical'] if 'historical' in session[g.code] else None
             if history is not None and not history.empty and type(history.index[0])==int:
@@ -239,7 +242,10 @@ def fetchHistory():
                 for stock in stocks:
                     data[stock['name'] + '_Total'] = data[stock['name'] + '_Close'] * stock['quantity']
                 data['Total'] = round(data[[stock['name'] + '_Total' for stock in stocks]].sum(axis=1), 2)
-        result = {"message":"Loaded from "+start_date.split('T')[0]}
+        if data is not None and data.shape[0] > 0:
+            result = {"message":"Loaded from "+start_date.split('T')[0]}
+        else:
+            result = {"message": "Attempted data load, size: "+str(len(stocks))}
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"error": str(e), "message": "Not loaded."}), 500
