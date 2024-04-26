@@ -75,7 +75,8 @@ def check_file_exists(stock_storage_file):
     if active_env != 'local':
         client = storage.Client()
         blobs = client.list_blobs(bucket_name)
-        return (stock_storage_file in blobs)
+        print(blobs)
+        return stock_storage_file in blobs
     else:
         return os.path.isfile(stock_storage_file)
 
@@ -89,9 +90,10 @@ def process_stocks(stocks_str):
     if not check_file_exists(stock_storage_file):
         load_fund_data(list(df['name'].unique()))
         df['price'] = df['name'].apply(lambda x: session[g.code]['metadata'][x]['LastClosePrice'] if x in session[g.code]['metadata'] else np.nan)
-        df[['name','price']].to_csv('files/' + today + '.csv')
         if active_env!='local':
             upload_blob(df[['name','price']], today + '.csv')
+        else:
+            df[['name', 'price']].to_csv('files/' + today + '.csv')
     else:
         read_df = read_file(stock_storage_file)
         if read_df.shape[0]==df.shape[0]:
@@ -99,9 +101,10 @@ def process_stocks(stocks_str):
         else:
             load_fund_data(list(df['name'].unique()))
             df['price'] = df['name'].apply(lambda x: session[g.code]['metadata'][x]['LastClosePrice'] if x in session[g.code]['metadata'] else np.nan)
-            df[['name', 'price']].to_csv('files/' + today + '.csv')
             if active_env != 'local':
                 upload_blob(df[['name', 'price']], today + '.csv')
+            else:
+                df[['name', 'price']].to_csv('files/' + today + '.csv')
     # df['volatility'] = df['name'].apply(lambda x: round(session[g.code]['metadata'][x]['Volatility'],2) if session[g.code]['metadata'][x]['Volatility'] is not None else None)
     # df['peRatio'] = df['name'].apply(lambda x: session[g.code]['metadata'][x]['PE_Ratio'] if session[g.code]['metadata'][x]['PE_Ratio']!=np.nan else '')
 
@@ -158,6 +161,7 @@ def stocksheet():
         gainSorted = request.args.get('gainSorted')
         stocks={}
         if g.code in session:
+            print('Session presence')
             stocks = session[g.code].get('stocks', [])
             sorting_options = {
                 'change': lambda x: x['change'],
@@ -169,6 +173,7 @@ def stocksheet():
             if gainSorted in sorting_options:
                 key_function = sorting_options[gainSorted]
                 stocks = sorted(stocks, key=key_function, reverse=(gainSorted not in ['pe']))
+        print('Post finding session.')
         return jsonify(stocks), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
