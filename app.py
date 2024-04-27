@@ -19,7 +19,7 @@ from sklearn.preprocessing import MinMaxScaler
 from tsmoothie.smoother import DecomposeSmoother
 
 from flask_session import Session
-from ops.insights import ProcessOperator, NewsOperator, OptimalOperator
+from ops.insights import ProcessOperator, NewsOperator, OptimalOperator, StockDeepDiver
 
 # client = google.cloud.logging.Client()
 # client.setup_logging()
@@ -146,6 +146,17 @@ def session_check():
     return jsonify(res), 200
 
 
+
+@app.route('/setSession', methods=['POST'])
+def set_session():
+    g.code = request.json.get('code')
+    stocks_data = request.json.get('stocks')
+    session[g.code] = {}
+    stocks = process_stocks(stocks_data)
+    session[g.code]['stocks'] = stocks
+    res = {"message": "Session: "+str(session.keys())}
+    return jsonify(res), 200
+
 @app.route('/factsheet', methods=['POST'])
 def factsheet():
     try:
@@ -166,7 +177,6 @@ def stocksheet():
         g.code = request.args.get('code')
         gainSorted = request.args.get('gainSorted')
         stocks={}
-        print('Starting stock sheet fetch: '+str(session))
         if g.code in session:
             stocks = session[g.code].get('stocks', [])
             sorting_options = {
@@ -174,11 +184,12 @@ def stocksheet():
                 'changepct': lambda x: x['changepct'],
                 'percentage': lambda x: x['percentage'],
                 'pe': lambda x: x['peRatio'],
-                'volatility': lambda x: x['volatility']
+                'volatility': lambda x: x['volatility'],
+                'name': lambda x: x['name']
             }
             if gainSorted in sorting_options:
                 key_function = sorting_options[gainSorted]
-                stocks = sorted(stocks, key=key_function, reverse=(gainSorted not in ['pe']))
+                stocks = sorted(stocks, key=key_function, reverse=(gainSorted not in ['pe','name']))
         return jsonify(stocks), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -572,6 +583,24 @@ def fetch_headlines():
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/getStockMetrics', methods=['GET'])
+def stock_metrics():
+    try:
+        symbols_string = request.args.get('symbols')
+        stock_symbols = symbols_string.split(',')
+        if len(stock_symbols)==0:
+            return jsonify({"message": "Choose stock"}), 500
+        result = {}
+        try:
+            op = StockDeepDiver()
+            result = op.get_stock_metrics(stock_symbols[0])
+        except:
+            print(sys.exc_info())
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
 
 
 

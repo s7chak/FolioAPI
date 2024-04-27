@@ -1,15 +1,17 @@
 import base64
 import math
+from collections import OrderedDict
+import cvxpy as cp
 import feedparser
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+import plotly.io as pio
 from flask import session
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
-import cvxpy as cp
+import yfinance as yf
 from ops import Config
-import plotly.express as px
-import plotly.io as pio
-import plotly.graph_objects as go
+
 
 class DataOperator():
 
@@ -273,6 +275,79 @@ class OptimalOperator():
         img_base64 = base64.b64encode(img_bytes).decode('utf-8')
 
         return {'optimal_weights': result, 'efficient_frontier_plot': img_base64}
+
+
+
+class StockDeepDiver():
+    def __init__(self):
+        self.ticker = None
+
+    def get_company_info(self):
+        try:
+            info = self.ticker.info
+            if info:
+                company_info = {
+                    "Company Name": info.get("longName", ""),
+                    "Exchange": info.get("exchange", ""),
+                    "Sector": info.get("sector", ""),
+                    "Industry": info.get("industry", ""),
+                    "Country": info.get("country", "")
+                }
+                return company_info
+            return None
+        except Exception as e:
+            print(f"Error occurred while fetching company info for symbol {symbol}: {str(e)}")
+            return None
+
+    def get_financial_metrics(self):
+        try:
+            info = self.ticker.info
+            financial_metrics = {
+                "Market Cap": info.get("marketCap", ""),
+                "Enterprise Value": info.get("enterpriseValue", ""),
+                "Revenue": info.get("revenue", ""),
+                "Earnings": info.get("earnings", ""),
+                "Earnings per Share (EPS)": info.get("forwardEps", ""),
+                "Dividend Yield": info.get("dividendYield", ""),
+                "Price to Earnings (P/E) Ratio": info.get("trailingPE", ""),
+                "Forward P/E": info.get("forwardPE", ""),
+                "Price to Sales (P/S) Ratio": info.get("priceToSalesTrailing12Months", ""),
+                "Price to Book (P/B) Ratio": info.get("priceToBook", ""),
+                "Price to Earnings Growth (PEG) Ratio": info.get("pegRatio", ""),
+                "Enterprise Value to Earnings Before Interest, Taxes, Depreciation, and Amortization (EV/EBITDA)": info.get(
+                    "enterpriseToEbitda", ""),
+                "Debt to Equity Ratio": info.get("debtToEquity", ""),
+                "Current Ratio": info.get("currentRatio", ""),
+                "Return on Equity (ROE)": info.get("returnOnEquity", ""),
+                "Return on Assets (ROA)": info.get("returnOnAssets", ""),
+                "Gross Margin": info.get("grossMargins", ""),
+                "Operating Margin": info.get("operatingMargins", ""),
+                "Net Margin": info.get("profitMargins", ""),
+                "Volatility": info.get("volatility", ""),
+                "52-Week High/Low": f"{info.get('fiftyTwoWeekHigh', '')} / {info.get('fiftyTwoWeekLow', '')}",
+                "Average Volume": info.get("averageVolume", "")
+            }
+            return financial_metrics
+        except Exception as e:
+            print(f"Error occurred while fetching financial metrics for symbol {self.ticker.info['symbol']}: {str(e)}")
+            return None
+
+    def get_stock_metrics(self, symbol):
+        try:
+            stock = yf.Ticker(symbol)
+            self.ticker = stock
+            # Get basic company information
+            company_info = self.get_company_info()
+            # Get financial metrics
+            financials = self.get_financial_metrics()
+            result = OrderedDict()
+            result.update(company_info)
+            result.update(financials)
+
+            return result
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            return {}
 
 
 class PlotOperator():
