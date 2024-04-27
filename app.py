@@ -35,7 +35,7 @@ envs = {
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
 active_env = 'local'
-active_version = '4.1'
+active_version = '4.1.1'
 
 def delete_metadata():
     del session[g.code]['metadata']
@@ -149,7 +149,7 @@ def session_check():
 @app.route('/factsheet', methods=['POST'])
 def factsheet():
     try:
-        g.code = request.args.get('code')
+        g.code = request.json.get('code')
         session[g.code] = {}
         stocks_data = request.json.get('stocks')
         stocks = process_stocks(stocks_data)
