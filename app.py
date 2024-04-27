@@ -35,7 +35,7 @@ envs = {
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
 active_env = 'local'
-active_version = '4.1.1'
+active_version = '4.2'
 
 def delete_metadata():
     del session[g.code]['metadata']
@@ -217,10 +217,12 @@ def load_historical(start):
                 print(f"Error fetching data for {ticker}: {e}")
             combined_df.fillna(method='ffill').fillna(method='bfill')
             combined_df.to_csv('files/storage.csv')
+            if active_env!='local':
+                upload_blob('storage.csv')
     else:
         combined_df = file_loaded
         combined_df = combined_df.set_index('Date')
-    combined_df = combined_df.fillna(method='ffill').fillna(method='bfill')
+    combined_df = combined_df.ffill().bfill()
     session[g.code]['historical'] = combined_df
 
 @app.route('/fetchHistory', methods=['GET'])
