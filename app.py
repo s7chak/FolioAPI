@@ -20,7 +20,8 @@ from tsmoothie.smoother import DecomposeSmoother
 
 from flask_session import Session
 from ops.insights import ProcessOperator, NewsOperator, OptimalOperator, StockDeepDiver
-
+import matplotlib
+matplotlib.use('agg')
 # client = google.cloud.logging.Client()
 # client.setup_logging()
 
@@ -34,8 +35,8 @@ envs = {
     'local' : {'type':'mac', 'url':''},
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
-active_env = 'prod'
-active_version = '4.3'
+active_env = 'local'
+active_version = '4.4'
 
 def delete_metadata():
     del session[g.code]['metadata']
@@ -584,6 +585,24 @@ def fetch_headlines():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/getStockAnalysis', methods=['GET'])
+def stock_analysis():
+    try:
+        symbols_string = request.args.get('symbols')
+        stock_symbols = symbols_string.split(',')
+        if len(stock_symbols)==0:
+            return jsonify({"message": "Choose stock"}), 500
+        result = {}
+        try:
+            op = StockDeepDiver()
+            result = op.load_stocks_run_everything(stock_symbols)
+        except:
+            print(sys.exc_info())
+            return jsonify({"message": "Error: "+str(sys.exc_info()[1])}), 500
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
 
 @app.route('/getStockMetrics', methods=['GET'])
 def stock_metrics():

@@ -1,10 +1,13 @@
 import base64
 import math
 from collections import OrderedDict
+from io import BytesIO
+
 import cvxpy as cp
 import feedparser
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import plotly.io as pio
 from flask import session
@@ -280,17 +283,18 @@ class OptimalOperator():
 
 class StockDeepDiver():
     def __init__(self):
+        self.tickers = None
         self.ticker = None
 
-    def get_company_info(self):
+    def get_company_info(self, symbol):
         try:
             info = self.ticker.info
             if info:
                 company_info = {
                     "Company Name": info.get("longName", ""),
+                    "Industry": info.get("industry", ""),
                     "Exchange": info.get("exchange", ""),
                     "Sector": info.get("sector", ""),
-                    "Industry": info.get("industry", ""),
                     "Country": info.get("country", "")
                 }
                 return company_info
@@ -299,7 +303,7 @@ class StockDeepDiver():
             print(f"Error occurred while fetching company info for symbol {symbol}: {str(e)}")
             return None
 
-    def get_financial_metrics(self):
+    def get_financial_metrics(self, symbol):
         try:
             info = self.ticker.info
             financial_metrics = {
@@ -307,16 +311,15 @@ class StockDeepDiver():
                 "Enterprise Value": info.get("enterpriseValue", ""),
                 "Revenue": info.get("revenue", ""),
                 "Earnings": info.get("earnings", ""),
-                "Earnings per Share (EPS)": info.get("forwardEps", ""),
-                "Dividend Yield": info.get("dividendYield", ""),
-                "Price to Earnings (P/E) Ratio": info.get("trailingPE", ""),
-                "Forward P/E": info.get("forwardPE", ""),
-                "Price to Sales (P/S) Ratio": info.get("priceToSalesTrailing12Months", ""),
-                "Price to Book (P/B) Ratio": info.get("priceToBook", ""),
-                "Price to Earnings Growth (PEG) Ratio": info.get("pegRatio", ""),
-                "Enterprise Value to Earnings Before Interest, Taxes, Depreciation, and Amortization (EV/EBITDA)": info.get(
-                    "enterpriseToEbitda", ""),
+                "EV/EBITDA": info.get("enterpriseToEbitda", ""),
                 "Debt to Equity Ratio": info.get("debtToEquity", ""),
+                "Earnings per Share (EPS)": info.get("forwardEps", ""),
+                "P/E Ratio": info.get("trailingPE", ""),
+                "Forward P/E": info.get("forwardPE", ""),
+                "P/S Ratio": info.get("priceToSalesTrailing12Months", ""),
+                "P/B Ratio": info.get("priceToBook", ""),
+                "Price to Earnings Growth (PEG) Ratio": info.get("pegRatio", ""),
+                "Dividend Yield": info.get("dividendYield", ""),
                 "Current Ratio": info.get("currentRatio", ""),
                 "Return on Equity (ROE)": info.get("returnOnEquity", ""),
                 "Return on Assets (ROA)": info.get("returnOnAssets", ""),
@@ -337,18 +340,144 @@ class StockDeepDiver():
             stock = yf.Ticker(symbol)
             self.ticker = stock
             # Get basic company information
-            company_info = self.get_company_info()
+            company_info = self.get_company_info(symbol)
             # Get financial metrics
-            financials = self.get_financial_metrics()
+            financials = self.get_financial_metrics(symbol)
             result = OrderedDict()
             result.update(company_info)
             result.update(financials)
-
             return result
         except Exception as e:
             print(f"Error occurred: {e}")
             return {}
 
+    def plot_stock_vs_sp500(self, symbol, start):
+        try:
+            stock_data = yf.download(symbol, start=start)
+            sp500_data = yf.download('^GSPC', start=start)
+            normalized_stock_data = stock_data['Adj Close'] / stock_data['Adj Close'].iloc[0]
+            normalized_sp500_data = sp500_data['Adj Close'] / sp500_data['Adj Close'].iloc[0]
+
+            plt.figure(figsize=(10, 6))
+            plt.plot(normalized_stock_data, label=f'{symbol} Normalized')
+            plt.plot(normalized_sp500_data, label='SP500 Normalized')
+            plt.title(f'{symbol} vs S&P 500')
+            plt.xlabel('Date')
+            plt.ylabel('Normalized Price')
+            plt.legend()
+            buffer = BytesIO()
+            plt.savefig(buffer, format='png')
+            buffer.seek(0)
+            img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            plt.close()
+            return img_base64
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            return ''
+
+    def plot_stock(self, symbol, start):
+        try:
+            stock_data = yf.download(symbol, start=start)
+            normalized_stock_data = stock_data['Adj Close'] / stock_data['Adj Close'].iloc[0]
+            plt.figure(figsize=(10, 6))
+            plt.plot(normalized_stock_data, label=f'{symbol}')
+            plt.title(f'{symbol}')
+            plt.xlabel('Date')
+            plt.ylabel('Price')
+            buffer = BytesIO()
+            plt.savefig(buffer, format='png')
+            buffer.seek(0)
+            img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            plt.close()
+            return img_base64
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            return ''
+
+    def score_stocks(self):
+        fund_df = pd.DataFrame()
+        for ticker in self.tickers:
+            t = pd.DataFrame(ticker.info)[:1]
+            fund_df = pd.concat([fund_df, t])
+        data = fund_df[Config.analysis_fields]
+        uvs = self.uvs_scoring(data)
+        ufs = self.ufs_scoring(uvs)
+        final = self.all_scoring(ufs)
+        final['ThresholdScore'] = round((final['UVS'] + final['UFS']) / 20, 2)
+        final.sort_values('10Score', ascending=False)
+        res = final.T.to_dict('dict')
+        return res
+
+    # Fundamental Score
+    def ufs_scoring(self, d):
+        # UFS = (normalized revenue growth score + normalized earnings growth score + normalized profit margin score + normalized ROE score + normalized debt to equity ratio score + normalized PEG ratio score) / 6
+        # w1 = 20, w2 = 20, w3 = 10, w4 = 20, w5 = 15, w6 = 15
+        vars = Config.ufs_needs + Config.uvs_needs + [Config.eveb]
+        d = d[vars + ['UVS']]
+        my_thresholds = Config.ufs_thresholds
+        for m in my_thresholds.keys():
+            d[m + '_score'] = round((d[m].values[0] - my_thresholds[m][0]) / (my_thresholds[m][1] - my_thresholds[m][0]), 2)
+            d[m + '_score'].fillna(0, inplace=True)
+
+        d['UFS'] = round((Config.ufs_weights[Config.rg] * d[Config.rg + '_score'] + Config.ufs_weights[Config.eg] * d[Config.eg + '_score'] + Config.ufs_weights[Config.pm] * d[Config.pm + '_score'] + Config.ufs_weights[
+                              Config.roe] * d[Config.roe + '_score'] + Config.ufs_weights[Config.dte] * d[Config.dte + '_score'] + Config.ufs_weights[Config.peg] * d[Config.peg + '_score']) / 100, 2)
+        return d.sort_values('UFS', ascending=False)
+
+    def all_scoring(self, d):
+        # UFS = (normalized revenue growth score + normalized earnings growth score + normalized profit margin score + normalized ROE score + normalized debt to equity ratio score + normalized PEG ratio score) / 6
+        # w1 = 20, w2 = 20, w3 = 10, w4 = 20, w5 = 15, w6 = 15
+        vars = Config.ufs_needs + Config.uvs_needs + [Config.eveb, 'UVS', 'UFS']
+        d = d[vars]
+        d['10Score'] = 0
+        my_thresholds = Config.ufs_thresholds
+        my_thresholds.update(Config.uvs_thresholds)
+        for m in my_thresholds.keys():
+            d[m + '_norm'] = round((d[m] - d[m].min()) / (d[m].max() - d[m].min()), 2)
+            d['10Score'] += d[m + '_norm']
+        d['10Score'] = round(d['10Score']*10/11 , 2)
+        return d.sort_values('10Score', ascending=False)
+
+    # Value Score
+    def uvs_scoring(self, d):
+        # UVS = w1 * (normalized P / E) + w2 * (normalized P / B) + w3 * (normalized P / S) + w4 * (normalized EV / EBITDA) + w5 * (normalized Fwd P / E)
+        # w1 = 20, w2 = 20, w3 = 10, w4 = 20, w5 = 30
+        vars = Config.uvs_needs + Config.ufs_needs
+        d = d[['symbol'] + vars]
+        d.set_index('symbol', inplace=True)
+        d[Config.eveb] = d[Config.ev] / d[Config.ebitda]
+        my_thresholds = Config.uvs_thresholds
+        for m in my_thresholds.keys():
+            d[m + '_score'] = round((d[m].values[0] - my_thresholds[m][0]) / (my_thresholds[m][1] - my_thresholds[m][0]), 2)
+            d[m + '_score'].fillna(0, inplace=True)
+        d['UVS'] = round((Config.uvs_weights[Config.pe] * d[Config.pe + '_score'] + Config.uvs_weights[Config.pb] * d[Config.pb + '_score'] + Config.uvs_weights[Config.ps] * d[Config.ps + '_score'] +
+                          Config.uvs_weights[Config.eveb] * d[Config.eveb + '_score'] + Config.uvs_weights[Config.fpe] * d[Config.fpe + '_score']) / 100, 2)
+        return d.sort_values('UVS', ascending=False)
+
+
+    def load_stocks_run_everything(self, tickers):
+        self.tickers = []
+        result = {}
+        self.scores = {}
+        try:
+            for t in tickers:
+                stock = yf.Ticker(t)
+                self.ticker = stock
+                self.tickers.append(stock)
+                result[t] = {}
+                company_info = self.get_company_info(t)
+                financials = self.get_financial_metrics(t)
+                result[t]['Company'] = company_info
+                result[t]['Financials'] = financials
+                start = '2015-01-01'
+                plot_plain = self.plot_stock(t, start)
+                plot_vs_sp500 = self.plot_stock_vs_sp500(t, start)
+                result[t]['plot'] = plot_plain
+                result[t]['plotvsp'] = plot_vs_sp500
+            result['scores'] = self.score_stocks()
+            return result
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            return {}
 
 class PlotOperator():
 
