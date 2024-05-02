@@ -35,7 +35,7 @@ envs = {
     'local' : {'type':'mac', 'url':''},
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
-active_env = 'local'
+active_env = 'prod'
 active_version = '4.4'
 
 def delete_metadata():
