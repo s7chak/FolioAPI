@@ -19,7 +19,7 @@ from sklearn.preprocessing import MinMaxScaler
 from tsmoothie.smoother import DecomposeSmoother
 
 from flask_session import Session
-from ops.insights import ProcessOperator, NewsOperator, OptimalOperator, StockDeepDiver
+from ops.insights import ProcessOperator, NewsOperator, OptimalOperator, StockDeepDiver, MarketAnalysis
 import matplotlib
 matplotlib.use('agg')
 # client = google.cloud.logging.Client()
@@ -35,8 +35,8 @@ envs = {
     'local' : {'type':'mac', 'url':''},
     'prod' : {'type':'gcp', 'url':'<CloudRun API Public URL>'}
 }
-active_env = 'prod'
-active_version = '4.4'
+active_env = 'local'
+active_version = '4.5'
 
 def delete_metadata():
     del session[g.code]['metadata']
@@ -563,6 +563,21 @@ def fetchOptimal():
         print(e)
         return jsonify({"error": str(e), "message": "Failed to calculate optimal frontier."}), 500
 
+
+@app.route('/getMarketDataToday', methods=['GET'])
+def getMarketStats():
+    try:
+        start = '2024-01-01'
+        result = {"message": ""}
+        ops = MarketAnalysis()
+        res = ops.run_market_analysis(start)
+        img = res['mainplot']
+        result['mainplot'] = img
+        result['message'] = 'Market plot started.'
+        return jsonify(result), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"error": str(e), "message":"Not calculated."}), 500
 
 
 @app.route('/headlines', methods=['GET'])

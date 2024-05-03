@@ -431,10 +431,12 @@ class StockDeepDiver():
         d['10Score'] = 0
         my_thresholds = Config.ufs_thresholds
         my_thresholds.update(Config.uvs_thresholds)
+        d = d.fillna(0)
         for m in my_thresholds.keys():
             d[m + '_norm'] = round((d[m] - d[m].min()) / (d[m].max() - d[m].min()), 2)
             d['10Score'] += d[m + '_norm']
         d['10Score'] = round(d['10Score']*10/11 , 2)
+        d['Missing'] = 0
         return d.sort_values('10Score', ascending=False)
 
     # Value Score
@@ -478,6 +480,35 @@ class StockDeepDiver():
         except Exception as e:
             print(f"Error occurred: {e}")
             return {}
+
+
+class MarketAnalysis():
+
+    def get_snp_plot(self, start):
+        sp500_data = yf.download('^GSPC', start=start)
+        nasdaq_data = yf.download('^IXIC', start=start) # ^BSESN
+        normalized_sp500_data = sp500_data['Adj Close'] / sp500_data['Adj Close'].iloc[0]
+        normalized_nasdaq_data = nasdaq_data['Adj Close'] / nasdaq_data['Adj Close'].iloc[0]
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(normalized_sp500_data, label='SP500-Norm')
+        plt.plot(normalized_nasdaq_data, label='NASDAQ-Norm')
+        plt.xlabel('Date')
+        plt.ylabel('Normalized Price')
+        plt.legend()
+        buffer = BytesIO()
+        plt.savefig(buffer, format='png')
+        buffer.seek(0)
+        img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        plt.close()
+        return img_base64
+
+    def run_market_analysis(self, start):
+        result = {}
+        img = self.get_snp_plot(start)
+        result['mainplot'] = img
+        return result
+
 
 class PlotOperator():
 
