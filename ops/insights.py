@@ -484,7 +484,7 @@ class StockDeepDiver():
 
 class MarketAnalysis():
 
-    def get_snp_plot(self, start):
+    def get_main_plot(self, start):
         sp500_data = yf.download('^GSPC', start=start)
         nasdaq_data = yf.download('^IXIC', start=start) # ^BSESN
         normalized_sp500_data = sp500_data['Adj Close'] / sp500_data['Adj Close'].iloc[0]
@@ -505,7 +505,7 @@ class MarketAnalysis():
 
     def run_market_analysis(self, start):
         result = {}
-        img = self.get_snp_plot(start)
+        img = self.get_main_plot(start)
         result['mainplot'] = img
         return result
 
