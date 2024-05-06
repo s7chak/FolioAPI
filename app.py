@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime as dt
+from datetime import datetime as dt, datetime
 from datetime import timedelta
 
 import google.cloud.logging
@@ -564,16 +564,41 @@ def fetchOptimal():
         return jsonify({"error": str(e), "message": "Failed to calculate optimal frontier."}), 500
 
 
+def get_date_start(phrase):
+    if phrase == 'ytd':
+        start = (datetime.now() - timedelta(days=datetime.now().timetuple().tm_yday - 1)).strftime('%Y-%m-%d')
+    elif phrase.endswith('Y'):
+        years = int(phrase[:-1])
+        start = (datetime.now() - timedelta(days=365 * years)).strftime('%Y-%m-%d')
+    elif phrase.endswith('W'):
+        weeks = int(phrase[:-1])
+        start = (datetime.now() - timedelta(weeks=weeks)).strftime('%Y-%m-%d')
+    elif phrase.endswith('M'):
+        months = int(phrase[:-1])
+        start = (datetime.now() - timedelta(days=30 * months)).strftime('%Y-%m-%d')
+    elif phrase.endswith('Q'):
+        quarters = int(phrase[:-1])
+        start = (datetime.now() - timedelta(days=91 * quarters)).strftime('%Y-%m-%d')
+    elif phrase.endswith('D'):
+        days = int(phrase[:-1])
+        start = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+    else:
+        start = '2024-01-01'
+    return start
+
 @app.route('/getMarketDataToday', methods=['GET'])
 def getMarketStats():
     try:
         start = '2024-01-01'
+        if 'start' in request.args:
+            start_phrase = request.args['start'] if 'start' in request.args else 'ytd'
+            start = get_date_start(start_phrase)
         result = {"message": ""}
         ops = MarketAnalysis()
         res = ops.run_market_analysis(start)
         img = res['mainplot']
         result['mainplot'] = img
-        result['message'] = 'Market plot started.'
+        result['message'] = 'Market plot done.'
         return jsonify(result), 200
     except Exception as e:
         print(e)

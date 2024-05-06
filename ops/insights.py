@@ -485,16 +485,15 @@ class StockDeepDiver():
 class MarketAnalysis():
 
     def get_main_plot(self, start):
-        sp500_data = yf.download('^GSPC', start=start)
-        nasdaq_data = yf.download('^IXIC', start=start) # ^BSESN
-        normalized_sp500_data = sp500_data['Adj Close'] / sp500_data['Adj Close'].iloc[0]
-        normalized_nasdaq_data = nasdaq_data['Adj Close'] / nasdaq_data['Adj Close'].iloc[0]
-
+        ind_list = {'GC=F': 'Gold', '^GSPC':'SP500', '^TNX': '10YTreasury', 'SCHW': 'Schwab'} #^IQHGCPI':'CPI'
         plt.figure(figsize=(10, 6))
-        plt.plot(normalized_sp500_data, label='SP500-Norm')
-        plt.plot(normalized_nasdaq_data, label='NASDAQ-Norm')
-        plt.xlabel('Date')
+        for ind, name in ind_list.items():
+            data = yf.download(ind, start=start)['Adj Close'] #DX-Y.NYB
+            normalized_data = data / data.iloc[0]
+            plt.plot(normalized_data, label=name)
+
         plt.ylabel('Normalized Price')
+        plt.title('Market Vitals')
         plt.legend()
         buffer = BytesIO()
         plt.savefig(buffer, format='png')
