@@ -227,7 +227,7 @@ def load_historical(start):
                     combined_df = combined_df.join(stock_data)
             except Exception as e:
                 print(f"Error fetching data for {ticker}: {e}")
-            combined_df.fillna(method='ffill').fillna(method='bfill')
+            combined_df.ffill().bfill()
             combined_df.to_csv('files/storage.csv')
             if active_env!='local':
                 upload_blob('storage.csv')
